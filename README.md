@@ -48,7 +48,9 @@ Tip: open two browser windows (one normal, one private), sign in as Amara in one
 
 ## Live site
 
-Existing Vercel and Render deployments retain the legacy hostnames `https://mentorlink-client.vercel.app` and `https://project-mentorlink.onrender.com`. Those hostnames remain configured for compatibility; no new ConsuCare deployment URLs have been provided.
+The Blazor WebAssembly client can be published to Vercel using the repository's `build-vercel.sh` and `vercel.json`. Import the GitHub repository in Vercel; the configured build command is `bash build-vercel.sh`, and the output directory is `src/ConsuCare.Client/bin/Release/net8.0/publish/wwwroot`.
+
+The client currently reads `ApiBaseUrl` from `src/ConsuCare.Client/wwwroot/appsettings.json`. Until the API is deployed and that setting points to its reachable URL, the UI can load on Vercel but API-backed operations will fail.
 
 ## Tests
 

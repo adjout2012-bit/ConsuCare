@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
+
 curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
-bash /tmp/dotnet-install.sh --channel 8.0
-export DOTNET_ROOT="$HOME/.dotnet"
+
+export DOTNET_ROOT="${DOTNET_ROOT:-$HOME/.dotnet}"
 export PATH="$DOTNET_ROOT:$PATH"
-dotnet publish src/ConsuCare.Client/ConsuCare.Client.csproj -c Release -o publish
+
+bash /tmp/dotnet-install.sh --channel 8.0 --install-dir "$DOTNET_ROOT"
+
+dotnet publish src/ConsuCare.Client/ConsuCare.Client.csproj \
+  --configuration Release \
+  --output src/ConsuCare.Client/bin/Release/net8.0/publish
