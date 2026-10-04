@@ -1,0 +1,6 @@
+<svg width="@Size" height="@Size"><use href="@($"#i-{Name}")" /></svg>
+
+@code {
+    [Parameter] public string Name { get; set; } = "home";
+    [Parameter] public int Size { get; set; } = 17;
+}

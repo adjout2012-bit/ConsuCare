@@ -1,0 +1,130 @@
+@page "/supporter-dashboard"
+@layout AppLayout
+@inject Api Api
+@inject AppState State
+@inject NavigationManager Nav
+
+<PageTitle>Supporter Hub — ConsuCare</PageTitle>
+
+<div class="pagehead">
+    <div>
+        <h1>Your supporter hub, @ShortName</h1>
+        <p class="sub">@DateTime.Now.ToString("dddd, MMMM d, yyyy")</p>
+    </div>
+</div>
+
+@if (data is null)
+{
+    <div class="loading">Loading your dashboard…</div>
+}
+else
+{
+    <div class="stats">
+        <div class="stat"><span class="lab">Patients Supported</span><b>@data.ActivePatients</b><span>in your peer-support network</span></div>
+        <div class="stat"><span class="lab">Support Requests</span><b>@data.PendingRequests</b><span>awaiting your response</span></div>
+        <div class="stat"><span class="lab">Check-ins This Month</span><b>@data.SessionsThisMonth</b><span>care and connection</span></div>
+    </div>
+
+    <div class="sect" style="margin-bottom:26px">
+        <h3>Support Requests</h3>
+        @if (data.Requests.Count == 0)
+        {
+            <div class="empty-tab">No support requests — you're all caught up.</div>
+        }
+        @foreach (var request in data.Requests)
+        {
+            <div class="card reqcard">
+                <Avatar Name="@request.PatientName" Size="md" />
+                <div class="rbody">
+                    <div class="row1">
+                        <b>@request.PatientName</b>
+                        <span class="mut small">Patient</span>
+                        <span class="chip">@Label(request.CareFocus)</span>
+                    </div>
+                    <p class="msgprev">"@request.Message"</p>
+                    <span class="mut small">Received @request.CreatedAt.ToLocalTime().ToString("MMM d, yyyy") · prefers @request.Frequency.ToLower() sessions</span>
+                </div>
+                <div class="acts">
+                    <button class="btn btn-dark btn-sm" @onclick="() => Accept(request.Id)">Accept</button>
+                    <button class="btn btn-out btn-sm" @onclick="() => Decline(request.Id)">Decline</button>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="sect">
+        <h3>Patients You Support</h3>
+        @if (data.Patients.Count == 0)
+        {
+            <div class="empty-tab">No patients in your care network yet — accept a support request to get started.</div>
+        }
+        @foreach (var patient in data.Patients)
+        {
+            <div class="patient-row">
+                <Avatar Name="@patient.Name" />
+                <div class="mb"><b>@patient.Name</b><span>Patient · @patient.Community</span></div>
+                <div class="mg">
+                    <span>@patient.GoalTitle</span>
+                    <div class="row">
+                        <div class="prog"><i style="width:@(patient.Progress)%"></i></div>
+                        <span class="pct">@(patient.Progress)%</span>
+                    </div>
+                </div>
+                <span class="last">
+                    @(patient.LastSessionAt is null ? "No check-ins yet" : $"Last check-in {patient.LastSessionAt.Value.ToLocalTime():MMM d}")
+                </span>
+                <button class="btn btn-dark btn-sm" @onclick="() => OpenChat(patient.PatientId)">Message</button>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private SupporterDashboardDto? data;
+
+    private string ShortName
+    {
+        get
+        {
+            var name = State.CurrentUser?.FullName ?? "";
+            var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return name.StartsWith("Dr.") && parts.Length > 1 ? $"Dr. {parts[^1]}" : parts.FirstOrDefault() ?? "";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await State.EnsureLoadedAsync();
+        if (State.CurrentUser is null) return;
+        data = await Api.GetSupporterDashboardAsync(State.CurrentUser.Id);
+    }
+
+    private async Task Accept(int requestId)
+    {
+        await Api.AcceptRequestAsync(requestId);
+        await Reload();
+    }
+
+    private async Task Decline(int requestId)
+    {
+        await Api.DeclineRequestAsync(requestId);
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        if (State.CurrentUser is not null)
+            data = await Api.GetSupporterDashboardAsync(State.CurrentUser.Id);
+    }
+
+    private void OpenChat(int userId) => Nav.NavigateTo($"/messages?with={userId}");
+
+    private static string Label(CareFocus type) => type switch
+    {
+        CareFocus.GeneralHealth => "General Health",
+        CareFocus.PhysicalActivity => "Physical Activity",
+        CareFocus.MentalWellbeing => "Mental Wellbeing",
+        CareFocus.MedicationAdherence => "Medication Adherence",
+        _ => type.ToString()
+    };
+}

@@ -1,0 +1,198 @@
+@page "/settings"
+@layout AppLayout
+@inject Api Api
+@inject AppState State
+
+<PageTitle>Settings — ConsuCare</PageTitle>
+
+<div class="pagehead"><h1>Settings</h1></div>
+
+<div class="set-layout">
+    <div class="set-menu">
+        <button class="@(section == "profile" ? "on" : "")" @onclick=@(() => section = "profile")>Profile</button>
+        <button class="@(section == "account" ? "on" : "")" @onclick=@(() => section = "account")>Account</button>
+        <button class="@(section == "notifications" ? "on" : "")" @onclick=@(() => section = "notifications")>Notifications</button>
+        <button class="@(section == "privacy" ? "on" : "")" @onclick=@(() => section = "privacy")>Privacy</button>
+    </div>
+
+    <div class="set-body">
+        @if (section == "profile")
+        {
+            <div class="card" style="padding:28px">
+                <span class="lab" style="display:block; margin-bottom:18px">Profile</span>
+                <div class="avatar-up">
+                    <Avatar Name="@fullName" PhotoUrl="@photoUrl" Size="lg" />
+                    <label class="change" for="photo-file">Change Photo</label>
+                    <InputFile id="photo-file" style="display:none" accept="image/*" OnChange="OnPhotoSelected" />
+                    @if (photoError is not null)
+                    {
+                        <span class="mut" style="font-size:12px; color:#8f3232">@photoError</span>
+                    }
+                </div>
+                <div class="fgrid">
+                    <div class="field"><label for="st-name">Full Name</label><input class="inp" id="st-name" @bind="fullName" /></div>
+                    <div class="field"><label for="st-email">Email</label><input class="inp" id="st-email" type="email" @bind="email" /></div>
+                    <div class="field wide"><label for="st-community">Community or interests</label><input class="inp" id="st-community" @bind="community" /></div>
+                    <div class="field wide"><label for="st-bio">Short Bio</label><textarea class="inp" id="st-bio" style="min-height:84px" @bind="bio"></textarea></div>
+                </div>
+                <div class="row" style="justify-content:flex-end">
+                    @if (saved)
+                    {
+                        <span class="save-note">Saved ✓</span>
+                    }
+                    <button class="btn btn-dark" disabled="@busy" @onclick="Save">@(busy ? "Saving…" : "Save Changes")</button>
+                </div>
+            </div>
+        }
+        else if (section == "notifications")
+        {
+            <div class="card" style="padding:24px 28px">
+                <span class="lab" style="display:block; margin-bottom:8px">Notifications</span>
+                <div class="tog-row">
+                    <div><b>Email Notifications</b><span>Weekly digest and important account activity</span></div>
+                    <button type="button" class="switch @(togEmail ? "on" : "")" aria-label="Email notifications" @onclick="() => TogglePref(() => togEmail = !togEmail)"></button>
+                </div>
+                <div class="tog-row">
+                    <div><b>In-App Notifications</b><span>Activity inside ConsuCare while you're signed in</span></div>
+                    <button type="button" class="switch @(togInApp ? "on" : "")" aria-label="In-app notifications" @onclick="() => TogglePref(() => togInApp = !togInApp)"></button>
+                </div>
+                <div class="tog-row">
+                    <div><b>Support Request Alerts</b><span>When a request is accepted, declined, or received</span></div>
+                    <button type="button" class="switch @(togRequests ? "on" : "")" aria-label="Support request alerts" @onclick="() => TogglePref(() => togRequests = !togRequests)"></button>
+                </div>
+                <div class="tog-row">
+                    <div><b>Goal Reminder Alerts</b><span>Nudges when a milestone is due or going stale</span></div>
+                    <button type="button" class="switch @(togGoals ? "on" : "")" aria-label="Goal reminder alerts" @onclick="() => TogglePref(() => togGoals = !togGoals)"></button>
+                </div>
+                @if (prefsSaved)
+                {
+                    <span class="save-note">Saved ✓</span>
+                }
+            </div>
+        }
+        else if (section == "privacy")
+        {
+            <div class="card" style="padding:24px 28px">
+                <span class="lab" style="display:block; margin-bottom:8px">Privacy</span>
+                @if (State.CurrentUser?.Role == UserRole.Supporter)
+                {
+                    <div class="tog-row">
+                        <div><b>Share health details</b><span>Let signed-in members view your supporter profile, including your condition, diagnosis year, and lived-experience notes. Turning this off hides it from the directory.</span></div>
+                        <button type="button" class="switch @(togPublic ? "on" : "")" aria-label="Share health details with signed-in members" @onclick="() => TogglePref(() => togPublic = !togPublic)"></button>
+                    </div>
+                    <p class="mut small">ConsuCare is a peer-support community, not a source of medical advice.</p>
+                }
+                @if (prefsSaved)
+                {
+                    <span class="save-note">Saved ✓</span>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="card" style="padding:28px; max-width:420px">
+                <span class="lab" style="display:block; margin-bottom:14px">Change Password</span>
+                @if (pwError is not null)
+                {
+                    <div class="form-error">@pwError</div>
+                }
+                @if (pwSaved)
+                {
+                    <div class="form-error" style="background:#f0f7f0; border-color:#c8e3c8; color:#2f6b32">Password updated ✓</div>
+                }
+                <div class="field"><label for="pw-cur">Current Password</label><input class="inp" id="pw-cur" type="password" @bind="currentPassword" /></div>
+                <div class="field"><label for="pw-new">New Password</label><input class="inp" id="pw-new" type="password" @bind="newPassword" /></div>
+                <div class="field"><label for="pw-conf">Confirm New Password</label><input class="inp" id="pw-conf" type="password" @bind="confirmPassword" /></div>
+                <div class="row" style="justify-content:flex-end">
+                    <button class="btn btn-dark" disabled="@pwBusy" @onclick="ChangePassword">@(pwBusy ? "Updating…" : "Update Password")</button>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private string section = "profile";
+    private string fullName = "", email = "", community = "", bio = "";
+    private string? photoUrl;
+    private string? photoError;
+    private bool togEmail = true, togInApp = true, togRequests = true, togGoals, togPublic;
+    private bool busy, saved, prefsSaved;
+
+    private string currentPassword = "", newPassword = "", confirmPassword = "";
+    private string? pwError;
+    private bool pwBusy, pwSaved;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await State.EnsureLoadedAsync();
+        var user = State.CurrentUser;
+        if (user is null) return;
+        fullName = user.FullName; email = user.Email; community = user.Community;
+        bio = user.Bio;
+        photoUrl = user.PhotoUrl;
+        togEmail = user.EmailNotifs; togInApp = user.InAppNotifs;
+        togRequests = user.RequestAlerts; togGoals = user.GoalAlerts;
+        togPublic = user.IsPublic;
+    }
+
+    private async Task OnPhotoSelected(InputFileChangeEventArgs e)
+    {
+        photoError = null;
+        const long maxSize = 1_500_000;
+        if (e.File.Size > maxSize)
+        {
+            photoError = "Image must be under 1.5MB.";
+            return;
+        }
+
+        using var stream = e.File.OpenReadStream(maxSize);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        photoUrl = $"data:{e.File.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}";
+    }
+
+    private async Task Save()
+    {
+        if (State.CurrentUser is null) return;
+        busy = true; saved = false;
+        var updated = await Api.UpdateProfileAsync(State.CurrentUser.Id,
+            new UpdateProfileRequest(fullName, email, community, bio, photoUrl));
+        busy = false;
+        if (updated is not null)
+        {
+            await State.SignInAsync(updated, State.Token!);
+            saved = true;
+        }
+    }
+
+    private async Task TogglePref(Action flip)
+    {
+        flip();
+        if (State.CurrentUser is null) return;
+        prefsSaved = false;
+        var updated = await Api.UpdatePreferencesAsync(State.CurrentUser.Id,
+            new UpdatePreferencesRequest(togEmail, togInApp, togRequests, togGoals, togPublic));
+        if (updated is not null)
+        {
+            await State.SignInAsync(updated, State.Token!);
+            prefsSaved = true;
+        }
+    }
+
+    private async Task ChangePassword()
+    {
+        pwError = null; pwSaved = false;
+        if (State.CurrentUser is null) return;
+        if (newPassword.Length < 8) { pwError = "New password needs at least 8 characters."; return; }
+        if (newPassword != confirmPassword) { pwError = "New password and confirmation don't match."; return; }
+
+        pwBusy = true;
+        var error = await Api.ChangePasswordAsync(State.CurrentUser.Id, new ChangePasswordRequest(currentPassword, newPassword));
+        pwBusy = false;
+
+        if (error is not null) { pwError = error; return; }
+        pwSaved = true;
+        currentPassword = ""; newPassword = ""; confirmPassword = "";
+    }
+}

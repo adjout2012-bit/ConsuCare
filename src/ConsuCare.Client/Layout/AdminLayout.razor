@@ -1,0 +1,57 @@
+@inherits LayoutComponentBase
+@inject AppState State
+@inject NavigationManager Nav
+@implements IDisposable
+
+@if (State.CurrentUser is null)
+{
+    <div class="loading">Loading…</div>
+}
+else
+{
+    <div class="admin-top">
+        <a class="logo-inline" href="/">
+            <span class="mark"><Icon Name="users" Size="15" /></span>ConsuCare
+        </a>
+        <span class="lab">Admin Panel</span>
+        <div class="row gap8">
+            <Avatar Name="@State.CurrentUser.FullName" PhotoUrl="@State.CurrentUser.PhotoUrl" Size="sm" />
+            <span class="admin-name">@State.CurrentUser.FullName</span>
+            <button class="btn btn-ghost btn-sm" @onclick="SignOut" title="Sign out"><Icon Name="out" Size="15" /></button>
+        </div>
+    </div>
+    <div class="admin-shell">
+        <aside class="sb">
+            <nav>
+                <a href="/admin/verifications"><Icon Name="grid" Size="17" />Dashboard</a>
+                <a href="/admin/verifications" class="active"><Icon Name="shield" Size="17" />Pending Verifications</a>
+                <a href="/admin/verifications"><Icon Name="users" Size="17" />All Users</a>
+                <a href="/admin/verifications"><Icon Name="file" Size="17" />Reports</a>
+                <a href="/admin/verifications"><Icon Name="set" Size="17" />Settings</a>
+            </nav>
+        </aside>
+        <main class="content">
+            @Body
+        </main>
+    </div>
+}
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        State.OnChange += StateHasChanged;
+        await State.EnsureLoadedAsync();
+        if (State.CurrentUser is null)
+        {
+            Nav.NavigateTo("/login");
+        }
+    }
+
+    private async Task SignOut()
+    {
+        await State.SignOutAsync();
+        Nav.NavigateTo("/");
+    }
+
+    public void Dispose() => State.OnChange -= StateHasChanged;
+}

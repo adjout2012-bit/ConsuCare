@@ -1,0 +1,32 @@
+@inherits LayoutComponentBase
+@inject AppState State
+@inject NavigationManager Nav
+@implements IDisposable
+
+@if (State.CurrentUser is null)
+{
+    <div class="loading">Loading…</div>
+}
+else
+{
+    <div class="app">
+        <Sidebar />
+        <main class="content">
+            @Body
+        </main>
+    </div>
+}
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        State.OnChange += StateHasChanged;
+        await State.EnsureLoadedAsync();
+        if (State.CurrentUser is null)
+        {
+            Nav.NavigateTo("/login");
+        }
+    }
+
+    public void Dispose() => State.OnChange -= StateHasChanged;
+}

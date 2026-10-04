@@ -1,0 +1,157 @@
+@page "/goals"
+@layout AppLayout
+@inject Api Api
+@inject AppState State
+
+<PageTitle>My Goals — ConsuCare</PageTitle>
+
+<div class="pagehead">
+    <h1>My Goals</h1>
+    <button class="btn btn-dark" @onclick="() => showAdd = !showAdd"><Icon Name="plus" Size="15" />Add Goal</button>
+</div>
+
+@if (showAdd)
+{
+    <div class="card" style="margin-bottom:18px; padding:24px">
+        <span class="lab" style="display:block; margin-bottom:14px">New Goal</span>
+        <div class="fgrid">
+            <div class="field">
+                <label for="g-title">Goal title</label>
+                <input class="inp" id="g-title" placeholder="e.g. Build a routine that works for me" @bind="newTitle" />
+            </div>
+            <div class="field">
+                <label for="g-type">Category</label>
+                <select class="inp" id="g-type" @bind="newType">
+                    <option value="@CareFocus.GeneralHealth">General Health</option>
+                    <option value="@CareFocus.Nutrition">Nutrition</option>
+                    <option value="@CareFocus.PhysicalActivity">Physical Activity</option>
+                    <option value="@CareFocus.MentalWellbeing">Mental Wellbeing</option>
+                    <option value="@CareFocus.MedicationAdherence">Medication Adherence</option>
+                </select>
+            </div>
+            <div class="field">
+                <label for="g-supporter">Supporter</label>
+                <select class="inp" id="g-supporter" @bind="newSupporterId">
+                    <option value="0">Unassigned</option>
+                    @foreach (var supporter in activeSupporters)
+                    {
+                        <option value="@supporter.PartnerId">@supporter.PartnerName</option>
+                    }
+                </select>
+            </div>
+            <div class="field wide">
+                <label for="g-miles">Milestones (one per line)</label>
+                <textarea class="inp" id="g-miles" style="min-height:84px"
+                          placeholder="First milestone&#10;Second milestone&#10;Third milestone" @bind="newMilestones"></textarea>
+            </div>
+        </div>
+        <div class="row" style="justify-content:flex-end; gap:10px">
+            <button class="btn btn-ghost btn-sm" @onclick="() => showAdd = false">Cancel</button>
+            <button class="btn btn-dark btn-sm" @onclick="AddGoal">Create Goal</button>
+        </div>
+    </div>
+}
+
+@if (goals is null)
+{
+    <div class="loading">Loading your goals…</div>
+}
+else if (goals.Count == 0)
+{
+    <div class="empty-tab">No goals yet — add your first one above.</div>
+}
+else
+{
+    @foreach (var goal in goals)
+    {
+        <div class="card goal-card @(goal.Status == GoalStatus.Completed ? "done" : "")">
+            <div class="gleft">
+                <span class="chip">@Label(goal.Type)</span>
+                <h3>@goal.Title</h3>
+                <span class="mut">Peer-support connection: @goal.SupporterName</span>
+            </div>
+            <div class="gmiles">
+                @foreach (var milestone in goal.Milestones)
+                {
+                    <label class="mile">
+                        <input type="checkbox" checked="@milestone.IsDone" @onchange="() => Toggle(milestone.Id)" />
+                        <span>@milestone.Title</span>
+                    </label>
+                }
+            </div>
+            <div class="gright">
+                <div class="ring">
+                    <svg width="74" height="74" viewBox="0 0 74 74">
+                        <circle class="trk" cx="37" cy="37" r="31" fill="none" stroke-width="6" />
+                        <circle class="val" cx="37" cy="37" r="31" fill="none" stroke-width="6"
+                                stroke-dasharray="194.8" stroke-dashoffset="@Offset(goal.Progress)" />
+                    </svg>
+                    <b>@(goal.Progress)%</b>
+                </div>
+                @if (goal.Status == GoalStatus.Completed)
+                {
+                    <span class="badge" style="background:#fff;color:var(--ink)">Completed</span>
+                }
+                else
+                {
+                    <span class="badge badge-grey">In Progress</span>
+                }
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private List<GoalDto>? goals;
+    private List<SupportConnectionDto> activeSupporters = new();
+    private bool showAdd;
+    private string newTitle = "", newMilestones = "";
+    private CareFocus newType = CareFocus.GeneralHealth;
+    private int newSupporterId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await State.EnsureLoadedAsync();
+        if (State.CurrentUser is null) return;
+        goals = await Api.GetGoalsAsync(State.CurrentUser.Id);
+        var connections = await Api.GetSupportConnectionsAsync(State.CurrentUser.Id) ?? new();
+        activeSupporters = connections.Where(m => !m.IsPendingRequest && m.Status == ConnectionStatus.Active).ToList();
+    }
+
+    private async Task Toggle(int milestoneId)
+    {
+        var updated = await Api.ToggleMilestoneAsync(milestoneId);
+        if (updated is not null && goals is not null)
+        {
+            var index = goals.FindIndex(g => g.Id == updated.Id);
+            if (index >= 0) goals[index] = updated;
+        }
+    }
+
+    private async Task AddGoal()
+    {
+        if (State.CurrentUser is null || string.IsNullOrWhiteSpace(newTitle)) return;
+        var milestones = newMilestones
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+        var created = await Api.CreateGoalAsync(new CreateGoalRequest(
+            State.CurrentUser.Id, newTitle, newType, newSupporterId == 0 ? null : newSupporterId, milestones));
+        if (created is not null)
+        {
+            goals?.Insert(0, created);
+            newTitle = ""; newMilestones = ""; newSupporterId = 0; showAdd = false;
+        }
+    }
+
+    private static string Offset(int progress)
+        => (194.8 - 194.8 * progress / 100.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static string Label(CareFocus type) => type switch
+    {
+        CareFocus.GeneralHealth => "General Health",
+        CareFocus.PhysicalActivity => "Physical Activity",
+        CareFocus.MentalWellbeing => "Mental Wellbeing",
+        CareFocus.MedicationAdherence => "Medication Adherence",
+        _ => type.ToString()
+    };
+}

@@ -1,0 +1,112 @@
+@page "/discover"
+@layout AppLayout
+@inject Api Api
+@inject NavigationManager Nav
+
+<PageTitle>Discover Supporters — ConsuCare</PageTitle>
+
+<div class="pagehead">
+    <h1>Discover Supporters</h1>
+    <div class="searchbar">
+        <Icon Name="search" Size="16" />
+        <input class="inp" placeholder="Search supporters by name…"
+               @bind="search" @bind:event="oninput" @onkeyup="ApplyFilters" />
+    </div>
+</div>
+
+<div class="discover">
+    <aside class="filters">
+        <div class="fgroup">
+            <span class="lab">Condition type</span>
+            <select class="inp" aria-label="Filter supporters by condition" @bind="selectedCondition">
+                <option value="">All conditions</option>
+                @foreach (var condition in allConditions)
+                {
+                    <option value="@condition">@condition</option>
+                }
+            </select>
+        </div>
+        <div class="fgroup">
+            <span class="lab">Availability</span>
+            <div class="fopt" style="justify-content:space-between">
+                Available now
+                <button type="button" class="switch @(availableOnly ? "on" : "")" aria-label="Available now"
+                        @onclick="ToggleAvailable"></button>
+            </div>
+        </div>
+        <div class="fgroup">
+            <span class="lab">Minimum Rating</span>
+            <Stars Rating="minRating" Label="@($"{minRating:0.0}+")" />
+            <input type="range" min="0" max="5" step="0.5" style="width:100%; margin-top:10px; accent-color:var(--ink)"
+                   value="@minRating" @oninput="OnRatingInput" />
+        </div>
+    </aside>
+
+    @if (supporters is null)
+    {
+        <div class="loading" style="flex:1">Finding supporters…</div>
+    }
+    else
+    {
+        <div class="mgrid">
+            @foreach (var supporter in Filtered)
+            {
+                <div class="mcard">
+                    <Avatar Name="@supporter.Name" Size="lg" />
+                    <b>@supporter.Name</b>
+                    <span class="role-line">@supporter.Title</span>
+                    @if (!string.IsNullOrWhiteSpace(supporter.ConditionType))
+                    {
+                        <span class="chip">@supporter.ConditionType</span>
+                    }
+                    @if (supporter.DiagnosisYear > 0)
+                    {
+                        <span class="mut small">Diagnosed @supporter.DiagnosisYear</span>
+                    }
+                    <Stars Rating="@supporter.Rating" Label="@supporter.Rating.ToString("0.0")" />
+                    <span class="bio">@supporter.Bio</span>
+                    <button class="btn btn-dark btn-sm" @onclick="() => ViewProfile(supporter.UserId)">View Supporter Profile</button>
+                </div>
+            }
+            @if (!Filtered.Any())
+            {
+                <div class="empty-tab" style="grid-column:1/-1">No supporters match those filters.</div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<SupporterCardDto>? supporters;
+    private string search = "";
+    private string selectedCondition = "";
+    private List<string> allConditions = new();
+    private bool availableOnly;
+    private double minRating;
+
+    protected override async Task OnInitializedAsync()
+    {
+        supporters = await Api.DiscoverSupportersAsync() ?? new();
+        allConditions = supporters.Select(m => m.ConditionType)
+            .Where(condition => !string.IsNullOrWhiteSpace(condition))
+            .Select(condition => condition.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(condition => condition)
+            .ToList();
+    }
+
+    private IEnumerable<SupporterCardDto> Filtered => (supporters ?? new())
+        .Where(supporter => string.IsNullOrEmpty(selectedCondition) ||
+            string.Equals(supporter.ConditionType, selectedCondition, StringComparison.OrdinalIgnoreCase))
+        .Where(supporter => !availableOnly || supporter.Available)
+        .Where(supporter => supporter.Rating >= minRating)
+        .Where(supporter => string.IsNullOrWhiteSpace(search)
+            || supporter.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
+
+    private void ViewProfile(int userId) => Nav.NavigateTo($"/supporter/{userId}");
+
+    private void ToggleAvailable() => availableOnly = !availableOnly;
+    private void ApplyFilters() { }
+    private void OnRatingInput(ChangeEventArgs e)
+        => minRating = double.TryParse(e.Value?.ToString(), out var v) ? v : 0;
+}

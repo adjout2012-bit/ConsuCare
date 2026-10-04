@@ -1,0 +1,124 @@
+@page "/signup"
+@layout PublicLayout
+@inject Api Api
+@inject AppState State
+@inject NavigationManager Nav
+
+<PageTitle>Sign Up — ConsuCare</PageTitle>
+
+<div class="auth">
+    <div class="auth-card">
+        <a class="logo-inline" href="/">
+            <span class="mark"><Icon Name="users" Size="15" /></span>ConsuCare
+        </a>
+        <h1>Create your account</h1>
+        <p class="sub">Choose how you want to use ConsuCare.</p>
+
+        <div class="roles">
+            <button type="button" class="role @(role == UserRole.Patient ? "on" : "")" @onclick="() => role = UserRole.Patient">
+                <Icon Name="user" Size="20" />
+                <b>I am a Patient</b>
+                <span>Looking for peer support</span>
+            </button>
+            <button type="button" class="role @(role == UserRole.Supporter ? "on" : "")" @onclick="() => role = UserRole.Supporter">
+                <Icon Name="users" Size="20" />
+                <b>I am a Supporter</b>
+                <span>Ready to share lived experience</span>
+            </button>
+        </div>
+
+        @if (error is not null)
+        {
+            <div class="form-error">@error</div>
+        }
+
+        <div class="field">
+            <label for="su-name">Full Name</label>
+            <input class="inp" id="su-name" placeholder="e.g. Amara Osei" @bind="fullName" />
+        </div>
+        <div class="field">
+            <label for="su-email">Email</label>
+            <input class="inp" id="su-email" type="email" placeholder="you@supporter.dev" @bind="email" />
+        </div>
+        <div class="field">
+            <label for="su-field">Community or interests (optional)</label>
+            <input class="inp" id="su-field" placeholder="e.g. local walking group" @bind="community" />
+        </div>
+        @if (role == UserRole.Supporter)
+        {
+            <div class="field">
+                <label for="su-condition">Chronic condition</label>
+                <input class="inp" id="su-condition" placeholder="e.g. Type 1 Diabetes" @bind="conditionType" />
+            </div>
+            <div class="field">
+                <label for="su-diagnosis-year">Year diagnosed</label>
+                <input class="inp" id="su-diagnosis-year" type="number" min="1900" max="@DateTime.Now.Year"
+                       @bind="diagnosisYear" />
+            </div>
+            <label class="check">
+                <input type="checkbox" @bind="shareHealthDetails" />
+                <span>I agree to show my condition, diagnosis year, and management strategies to signed-in ConsuCare members. I can turn this off in Privacy settings.</span>
+            </label>
+            <p class="mut small">ConsuCare is a peer-support community, not a source of medical advice. Do not share information you are not comfortable making visible.</p>
+        }
+        <div class="field">
+            <label for="su-pass">Password</label>
+            <input class="inp" id="su-pass" type="password" placeholder="At least 8 characters" @bind="password" />
+        </div>
+
+        <button class="btn btn-dark btn-lg" disabled="@busy" @onclick="Submit">
+            @(busy ? "Creating account…" : "Continue")
+        </button>
+        <p class="auth-foot">Already have an account? <a href="/login">Log In</a></p>
+    </div>
+</div>
+
+@code {
+    private UserRole role = UserRole.Patient;
+    private string fullName = "", email = "", community = "", password = "", conditionType = "";
+    private int? diagnosisYear;
+    private bool shareHealthDetails;
+    private string? error;
+    private bool busy;
+
+    private async Task Submit()
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(fullName) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        {
+            error = "Please fill in your name, email, and password.";
+            return;
+        }
+        if (password.Length < 8)
+        {
+            error = "Your password needs at least 8 characters.";
+            return;
+        }
+        if (role == UserRole.Supporter &&
+            (string.IsNullOrWhiteSpace(conditionType) ||
+             diagnosisYear is null ||
+             diagnosisYear < 1900 ||
+             diagnosisYear > DateTime.Now.Year))
+        {
+            error = "Enter your chronic condition and a valid diagnosis year.";
+            return;
+        }
+
+        busy = true;
+        var (auth, apiError) = await Api.SignupAsync(new SignupRequest(
+            fullName, email, community, password, role,
+            role == UserRole.Supporter ? conditionType : "",
+            role == UserRole.Supporter ? diagnosisYear ?? 0 : 0,
+            role == UserRole.Supporter && shareHealthDetails));
+        busy = false;
+
+        if (auth is null)
+        {
+            error = string.IsNullOrWhiteSpace(apiError) ? "Something went wrong — try again." : apiError.Trim('"');
+            return;
+        }
+
+        await State.SignInAsync(auth.User, auth.Token);
+        Nav.NavigateTo(auth.User.Role == UserRole.Supporter ? "/supporter-dashboard" : "/dashboard");
+    }
+}

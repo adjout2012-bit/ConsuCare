@@ -1,0 +1,73 @@
+@page "/login"
+@layout PublicLayout
+@inject Api Api
+@inject AppState State
+@inject NavigationManager Nav
+
+<PageTitle>Log In — ConsuCare</PageTitle>
+
+<div class="auth">
+    <div class="auth-card" style="max-width:410px">
+        <a class="logo-inline" href="/">
+            <span class="mark"><Icon Name="users" Size="15" /></span>ConsuCare
+        </a>
+        <h1>Welcome back</h1>
+        <p class="sub">Sign in to connect with your peer-support community.</p>
+
+        @if (error is not null)
+        {
+            <div class="form-error">@error</div>
+        }
+
+        <div class="field">
+            <label for="li-email">Email</label>
+            <input class="inp" id="li-email" type="email" placeholder="you@supporter.dev" @bind="email" />
+        </div>
+        <div class="field">
+            <label for="li-pass">Password</label>
+            <input class="inp" id="li-pass" type="password" placeholder="Your password" @bind="password"
+                   @onkeydown="@(e => { if (e.Key == "Enter") _ = Submit(); })" />
+        </div>
+        <a class="forgot" href="/login">Forgot password?</a>
+
+        <button class="btn btn-dark btn-lg" disabled="@busy" @onclick="Submit">
+            @(busy ? "Signing in…" : "Sign In")
+        </button>
+        <p class="auth-foot">Don't have an account? <a href="/signup">Sign Up</a></p>
+
+        <div class="demo-hint">
+            <b>Demo accounts</b> (password <code>demo1234</code>):<br />
+            Patient — <code>amara@patient.dev</code><br />
+            Supporter — <code>nnamdi@supporter.dev</code><br />
+            Admin — <code>admin@consucare.dev</code>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string email = "", password = "";
+    private string? error;
+    private bool busy;
+
+    private async Task Submit()
+    {
+        error = null;
+        busy = true;
+        var auth = await Api.LoginAsync(new LoginRequest(email, password));
+        busy = false;
+
+        if (auth is null)
+        {
+            error = "Invalid email or password.";
+            return;
+        }
+
+        await State.SignInAsync(auth.User, auth.Token);
+        Nav.NavigateTo(auth.User.Role switch
+        {
+            UserRole.Supporter => "/supporter-dashboard",
+            UserRole.Admin => "/admin/verifications",
+            _ => "/dashboard"
+        });
+    }
+}

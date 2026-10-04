@@ -1,0 +1,173 @@
+@page "/supporter/{UserId:int}"
+@layout AppLayout
+@using System.Web
+@inject Api Api
+@inject AppState State
+@inject NavigationManager Nav
+
+<PageTitle>Supporter Profile — ConsuCare</PageTitle>
+
+@if (profile is null)
+{
+    <div class="loading">Loading profile…</div>
+}
+else
+{
+    <div class="phead">
+        <Avatar Name="@profile.Card.Name" Size="xl" />
+        <div class="pinfo">
+            <h1>@profile.Card.Name</h1>
+            <p class="role-line">@profile.Card.Title</p>
+            <div class="row gap12" style="flex-wrap:wrap">
+                <span class="chip">@profile.Card.Community</span>
+                <span class="badge @(profile.Card.Available ? "badge-ok" : "badge-grey")">
+                    @if (profile.Card.Available)
+                    {
+                        <span class="dot"></span>
+                    }
+                    else
+                    {
+                        <span class="dot dot-busy"></span>
+                    }
+                    @(profile.Card.Available ? "Available" : "Busy")
+                </span>
+                <Stars Rating="@profile.Card.Rating" Label="@($"{profile.Card.Rating:0.0} · {profile.Card.ReviewCount} reviews")" />
+            </div>
+        </div>
+        <button class="btn btn-dark" @onclick="RequestSupport">Request Support</button>
+    </div>
+
+    <div class="tabs">
+        <button class="@(tab == 0 ? "on" : "")" @onclick="() => tab = 0">About</button>
+        <button class="@(tab == 1 ? "on" : "")" @onclick="() => tab = 1">Health Profile</button>
+        <button class="@(tab == 2 ? "on" : "")" @onclick="() => tab = 2">Reviews</button>
+    </div>
+
+    @if (tab == 0)
+    {
+        <div class="card" style="padding:26px">
+            <span class="lab" style="display:block; margin-bottom:14px">Lived experience</span>
+            <p class="bio-block">@profile.FullBio</p>
+        </div>
+    }
+    else if (tab == 1)
+    {
+        <div class="two-col">
+            <div class="card" style="padding:26px">
+                <span class="lab" style="display:block; margin-bottom:10px">Condition type</span>
+                <h3>@(string.IsNullOrWhiteSpace(profile.Card.ConditionType) ? "Not provided" : profile.Card.ConditionType)</h3>
+            </div>
+            <div class="card" style="padding:26px">
+                <span class="lab" style="display:block; margin-bottom:10px">Diagnosis year</span>
+                <h3>@(profile.Card.DiagnosisYear > 0 ? profile.Card.DiagnosisYear.ToString() : "Not provided")</h3>
+            </div>
+            <div class="card" style="padding:26px; grid-column:1/-1">
+                <span class="lab" style="display:block; margin-bottom:14px">Management strategies</span>
+                <p class="bio-block">@(string.IsNullOrWhiteSpace(profile.Card.ManagementStrategies)
+                    ? "No daily management approach has been shared yet."
+                    : profile.Card.ManagementStrategies)</p>
+            </div>
+        </div>
+        <p class="mut small">This profile describes one person's lived experience. It is not medical advice or a substitute for care from a qualified professional.</p>
+    }
+    else
+    {
+        @if (showReviewForm)
+        {
+            <div class="card review" style="margin-bottom:14px">
+                <span class="lab" style="display:block; margin-bottom:12px">Write a Review</span>
+                @if (reviewError is not null)
+                {
+                    <div class="form-error">@reviewError</div>
+                }
+                <div class="row gap8" style="margin-bottom:14px">
+                    @for (var i = 1; i <= 5; i++)
+                    {
+                        var val = i;
+                        <button type="button" class="iconbtn" style="width:30px; height:30px" @onclick="() => reviewRating = val" aria-label="@($"{val} stars")">
+                            <svg class="@(val <= reviewRating ? "f" : "e")" width="20" height="20"><use href="#i-star" /></svg>
+                        </button>
+                    }
+                </div>
+                <textarea class="inp" style="min-height:80px" placeholder="Share how this support experience went…" @bind="reviewText"></textarea>
+                <div class="row" style="justify-content:flex-end; gap:10px; margin-top:14px">
+                    <button class="btn btn-ghost btn-sm" @onclick="() => showReviewForm = false">Cancel</button>
+                    <button class="btn btn-dark btn-sm" disabled="@reviewBusy" @onclick="SubmitReview">@(reviewBusy ? "Submitting…" : "Submit Review")</button>
+                </div>
+            </div>
+        }
+        else if (State.CurrentUser is not null)
+        {
+            <button class="btn btn-out btn-sm" style="margin-bottom:14px" @onclick="() => showReviewForm = true">Write a Review</button>
+        }
+
+        @foreach (var review in profile.Reviews)
+        {
+            <div class="card review">
+                <div class="who">
+                    <Avatar Name="@review.PatientName" Size="sm" />
+                    <div>
+                        <b>@review.PatientName</b>
+                        <Stars Rating="@review.Rating" />
+                    </div>
+                </div>
+                <p>"@review.Text"</p>
+            </div>
+        }
+        @if (profile.Reviews.Count == 0)
+        {
+            <div class="empty-tab">No reviews yet.</div>
+        }
+    }
+}
+
+@code {
+    [Parameter] public int UserId { get; set; }
+
+    private SupporterProfileDto? profile;
+    private int tab;
+    private bool showReviewForm;
+    private int reviewRating = 5;
+    private string reviewText = "";
+    private string? reviewError;
+    private bool reviewBusy;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        profile = await Api.GetSupporterProfileAsync(UserId);
+
+        var query = HttpUtility.ParseQueryString(new Uri(Nav.Uri).Query);
+        if (query["review"] == "1")
+        {
+            tab = 2;
+            showReviewForm = true;
+        }
+    }
+
+    private void RequestSupport() => Nav.NavigateTo($"/request/{UserId}");
+
+    private async Task SubmitReview()
+    {
+        reviewError = null;
+        if (State.CurrentUser is null) return;
+        if (string.IsNullOrWhiteSpace(reviewText))
+        {
+            reviewError = "Say a little about how the support experience went.";
+            return;
+        }
+
+        reviewBusy = true;
+        var updated = await Api.AddReviewAsync(UserId, new CreateReviewRequest(State.CurrentUser.FullName, reviewRating, reviewText.Trim()));
+        reviewBusy = false;
+
+        if (updated is null)
+        {
+            reviewError = "Something went wrong — try again.";
+            return;
+        }
+
+        profile = updated;
+        showReviewForm = false;
+        reviewText = ""; reviewRating = 5;
+    }
+}

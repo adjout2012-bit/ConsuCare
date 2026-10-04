@@ -1,0 +1,110 @@
+@page "/dashboard"
+@layout AppLayout
+@inject Api Api
+@inject AppState State
+@inject NavigationManager Nav
+
+<PageTitle>Patient Hub — ConsuCare</PageTitle>
+
+<div class="pagehead">
+    <div>
+        <h1>Your care hub, @FirstName</h1>
+        <p class="sub">@DateTime.Now.ToString("dddd, MMMM d, yyyy")</p>
+    </div>
+</div>
+
+@if (data is null)
+{
+    <div class="loading">Loading your dashboard…</div>
+}
+else
+{
+    <div class="stats">
+        <div class="stat"><span class="lab">Supporters</span><b>@data.ActiveSupporters</b><span>in your care network</span></div>
+        <div class="stat"><span class="lab">Care Goals In Progress</span><b>@data.GoalsInProgress</b><span>one step at a time</span></div>
+        <div class="stat"><span class="lab">Unread Messages</span><b>@data.UnreadMessages</b><span>waiting in your inbox</span></div>
+    </div>
+
+    <div class="two-col">
+        <div class="sect">
+            <h3>Your Supporters</h3>
+            @if (data.Supporters.Count == 0)
+            {
+                <div class="empty-tab">No supporters yet — find someone in Discover.</div>
+            }
+            @foreach (var supporter in data.Supporters)
+            {
+                <div class="card supporter-card">
+                    <Avatar Name="@supporter.Name" Size="md" />
+                    <div class="info">
+                        <b>@supporter.Name</b>
+                        <span>@supporter.ConditionType</span>
+                    </div>
+                    <span class="badge @(supporter.Available ? "badge-ok" : "badge-grey")">
+                        @if (supporter.Available)
+                        {
+                            <span class="dot"></span>
+                        }
+                        @(supporter.Available ? "Available" : "Unavailable")
+                    </span>
+                    <button class="btn btn-dark btn-sm" @onclick="() => OpenChat(supporter.UserId)">Message</button>
+                </div>
+            }
+        </div>
+
+        <div class="sect">
+            <h3>Care Goals</h3>
+            @if (data.Goals.Count == 0)
+            {
+                <div class="empty-tab">No care goals yet — create one from Care Goals.</div>
+            }
+            @foreach (var goal in data.Goals)
+            {
+                <div class="card goal-mini">
+                    <div class="row spread gap12">
+                        <b style="font-size:14.5px">@goal.Title</b>
+                        <span class="chip">@Label(goal.Type)</span>
+                    </div>
+                    <div class="row">
+                        <div class="prog"><i style="width:@(goal.Progress)%"></i></div>
+                        <span class="pct">@(goal.Progress)%</span>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="cta-banner">
+        <div>
+            <h3>Looking for more support?</h3>
+            <p>Browse supporters who understand your health journey.</p>
+        </div>
+        <a class="discover-link" href="/discover">
+            Discover Supporters <span class="go"><Icon Name="arrow" Size="18" /></span>
+        </a>
+    </div>
+}
+
+@code {
+    private PatientDashboardDto? data;
+
+    private string FirstName => (State.CurrentUser?.FullName ?? "").Split(' ').FirstOrDefault() ?? "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await State.EnsureLoadedAsync();
+        if (State.CurrentUser is null) return;
+        data = await Api.GetPatientDashboardAsync(State.CurrentUser.Id);
+    }
+
+    private void OpenChat(int userId) => Nav.NavigateTo($"/messages?with={userId}");
+
+    private static string Label(CareFocus type) => type switch
+    {
+        CareFocus.GeneralHealth => "General Health",
+        CareFocus.PhysicalActivity => "Physical Activity",
+        CareFocus.MentalWellbeing => "Mental Wellbeing",
+        CareFocus.MedicationAdherence => "Medication Adherence",
+        _ => type.ToString()
+    };
+}

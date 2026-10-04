@@ -1,0 +1,104 @@
+@page "/request/{SupporterUserId:int}"
+@layout AppLayout
+@inject Api Api
+@inject AppState State
+@inject NavigationManager Nav
+
+<PageTitle>Request Support — ConsuCare</PageTitle>
+
+<div class="req-wrap">
+    @if (supporter is null)
+    {
+        <div class="loading">Loading…</div>
+    }
+    else if (sent)
+    {
+        <div class="card" style="padding:40px; text-align:center">
+            <h1 style="font-size:20px; margin-bottom:8px">Support request sent</h1>
+            <p class="mut" style="margin-bottom:22px">@supporter.Card.Name will be notified and usually responds within a couple of days.</p>
+            <a href="/support-network"><span class="btn btn-dark">View My Support Network</span></a>
+        </div>
+    }
+    else
+    {
+        <div class="card" style="padding:32px 34px">
+            <div class="req-head">
+                <Avatar Name="@supporter.Card.Name" Size="md" />
+                <div>
+                    <h1>Request Support from @supporter.Card.Name</h1>
+                    <p class="mut small">@supporter.Card.ConditionType</p>
+                </div>
+            </div>
+
+            @if (error is not null)
+            {
+                <div class="form-error">@error</div>
+            }
+
+            <div class="field">
+                <label for="rq-goal">Support focus</label>
+                <select class="inp" id="rq-goal" @bind="goalType">
+                    <option value="@CareFocus.GeneralHealth">General Health</option>
+                    <option value="@CareFocus.Nutrition">Nutrition</option>
+                    <option value="@CareFocus.PhysicalActivity">Physical Activity</option>
+                    <option value="@CareFocus.MentalWellbeing">Mental Wellbeing</option>
+                    <option value="@CareFocus.MedicationAdherence">Medication Adherence</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label for="rq-msg">What support would help you?</label>
+                <textarea class="inp" id="rq-msg" placeholder="Share the daily management or emotional support you're seeking. Include only what you're comfortable sharing." @bind="message"></textarea>
+            </div>
+
+            <div class="field">
+                <label for="rq-freq">Preferred support check-in frequency</label>
+                <select class="inp" id="rq-freq" @bind="frequency">
+                    <option>Weekly</option>
+                    <option>Biweekly</option>
+                    <option>Monthly</option>
+                </select>
+            </div>
+
+            <button class="btn btn-dark btn-lg" disabled="@busy" @onclick="Send">
+                @(busy ? "Sending…" : "Send Support Request")
+            </button>
+            <button class="cancel" @onclick="Cancel">Cancel</button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int SupporterUserId { get; set; }
+
+    private SupporterProfileDto? supporter;
+    private CareFocus goalType = CareFocus.GeneralHealth;
+    private string message = "";
+    private string frequency = "Weekly";
+    private string? error;
+    private bool busy, sent;
+
+    protected override async Task OnParametersSetAsync()
+        => supporter = await Api.GetSupporterProfileAsync(SupporterUserId);
+
+    private async Task Send()
+    {
+        error = null;
+        if (State.CurrentUser is null) return;
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            error = "Share what kind of support would be helpful, if you're comfortable.";
+            return;
+        }
+
+        busy = true;
+        var ok = await Api.CreateRequestAsync(new CreateSupportRequest(
+            State.CurrentUser.Id, SupporterUserId, goalType, message, frequency));
+        busy = false;
+
+        if (ok) sent = true;
+        else error = "Something went wrong sending your request — try again.";
+    }
+
+    private void Cancel() => Nav.NavigateTo($"/supporter/{SupporterUserId}");
+}

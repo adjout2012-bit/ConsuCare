@@ -1,0 +1,204 @@
+@page "/messages"
+@layout AppLayout
+@using Microsoft.AspNetCore.SignalR.Client
+@using System.Web
+@inject Api Api
+@inject AppState State
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject IConfiguration Configuration
+@implements IAsyncDisposable
+
+<PageTitle>Messages — ConsuCare</PageTitle>
+
+<div class="msg-page @(threadOpen ? "thread-open" : "")">
+    <div class="convs">
+        <div class="chead">
+            <h2>Messages</h2>
+            <div class="searchbar">
+                <Icon Name="search" Size="15" />
+                <input class="inp" placeholder="Search conversations…" @bind="search" @bind:event="oninput" />
+            </div>
+        </div>
+        <div class="convlist">
+            @foreach (var conv in FilteredConversations)
+            {
+                <button class="conv @(conv.PartnerId == activePartnerId ? "on" : "")" @onclick="() => OpenThread(conv.PartnerId, show: true)">
+                    <Avatar Name="@conv.PartnerName" />
+                    <span class="cbody">
+                        <span class="row1"><b>@conv.PartnerName</b><span class="time">@Stamp(conv.LastAt)</span></span>
+                        <span class="prev">@conv.LastMessage</span>
+                    </span>
+                    @if (conv.Unread > 0 && conv.PartnerId != activePartnerId)
+                    {
+                        <span class="pill">@conv.Unread</span>
+                    }
+                </button>
+            }
+            @if (conversations is not null && conversations.Count == 0)
+            {
+                <p style="padding:18px; font-size:12.5px; color:#8b8f95">No conversations yet — connect with a peer supporter to start a conversation.</p>
+            }
+        </div>
+    </div>
+
+    <div class="thread">
+        @if (ActiveConversation is null)
+        {
+            <div class="loading" style="margin:auto">Select a conversation to start chatting.</div>
+        }
+        else
+        {
+            <div class="thead">
+                <button class="iconbtn thread-back" aria-label="Back to conversations" @onclick="() => threadOpen = false"><Icon Name="back" Size="18" /></button>
+                <Avatar Name="@ActiveConversation.PartnerName" />
+                <div>
+                    <b>@ActiveConversation.PartnerName</b>
+                    <span class="status">
+                        @if (hubConnected)
+                        {
+                            <span class="dot"></span><text>Online</text>
+                        }
+                        else
+                        {
+                            <text>@ActiveConversation.PartnerRoleLine</text>
+                        }
+                    </span>
+                </div>
+            </div>
+            <div class="tbody" @ref="threadEl">
+                @{ DateTime? lastGroup = null; }
+                @foreach (var msg in thread)
+                {
+                    @if (lastGroup is null || (msg.SentAt - lastGroup.Value).TotalMinutes > 25)
+                    {
+                        <div class="tstamp">@GroupStamp(msg.SentAt)</div>
+                        lastGroup = msg.SentAt;
+                    }
+                    <div class="bub @(msg.SenderId == MyId ? "me" : "them")">@msg.Content</div>
+                }
+            </div>
+            <div class="composer">
+                <button class="iconbtn" aria-label="Attach file" title="Attachments coming soon"><Icon Name="clip" Size="17" /></button>
+                <input class="inp" placeholder="Type a message…" @bind="draft" @bind:event="oninput"
+                       @onkeydown="@(e => { if (e.Key == "Enter") _ = SendAsync(); })" />
+                <button class="sendbtn" aria-label="Send" @onclick="SendAsync"><Icon Name="send" Size="16" /></button>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<ConversationDto>? conversations;
+    private List<ChatMessageDto> thread = new();
+    private int activePartnerId;
+    private string draft = "", search = "";
+    private HubConnection? hub;
+    private bool hubConnected;
+    private ElementReference threadEl;
+    private bool scrollPending;
+    private bool threadOpen;
+
+    private int MyId => State.CurrentUser?.Id ?? 0;
+
+    private ConversationDto? ActiveConversation
+        => conversations?.FirstOrDefault(c => c.PartnerId == activePartnerId);
+
+    private IEnumerable<ConversationDto> FilteredConversations
+        => (conversations ?? new()).Where(c => string.IsNullOrWhiteSpace(search)
+            || c.PartnerName.Contains(search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await State.EnsureLoadedAsync();
+        if (State.CurrentUser is null) return;
+
+        conversations = await Api.GetConversationsAsync(MyId) ?? new();
+
+        // Deep link: /messages?with={userId}
+        var query = HttpUtility.ParseQueryString(new Uri(Nav.Uri).Query);
+        var with = int.TryParse(query["with"], out var id) ? id : 0;
+        var first = with != 0 ? with : conversations.FirstOrDefault()?.PartnerId ?? 0;
+        if (first != 0) await OpenThread(first, show: with != 0);
+
+        hub = new HubConnectionBuilder()
+            .WithUrl(new Uri(
+                new Uri(string.IsNullOrWhiteSpace(Configuration["ApiBaseUrl"]) ? Nav.BaseUri : Configuration["ApiBaseUrl"]!, UriKind.Absolute),
+                "/hubs/chat"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        hub.On<ChatMessageDto>("ReceiveMessage", async msg =>
+        {
+            if (msg.SenderId == activePartnerId || msg.SenderId == MyId)
+            {
+                thread.Add(msg);
+                scrollPending = true;
+            }
+            conversations = await Api.GetConversationsAsync(MyId) ?? conversations;
+            await InvokeAsync(StateHasChanged);
+        });
+
+        try
+        {
+            await hub.StartAsync();
+            await hub.SendAsync("Register", MyId);
+            hubConnected = true;
+        }
+        catch
+        {
+            hubConnected = false; // messages still load over HTTP
+        }
+    }
+
+    // show: on phones only one pane fits, so this decides whether the thread
+    // replaces the conversation list. Desktop always shows both.
+    private async Task OpenThread(int partnerId, bool show)
+    {
+        activePartnerId = partnerId;
+        if (show) threadOpen = true;
+        thread = await Api.GetThreadAsync(MyId, partnerId) ?? new();
+        conversations = await Api.GetConversationsAsync(MyId) ?? conversations;
+        scrollPending = true;
+    }
+
+    private async Task SendAsync()
+    {
+        var content = draft.Trim();
+        if (content.Length == 0 || activePartnerId == 0 || hub is null || !hubConnected) return;
+        draft = "";
+        await hub.SendAsync("SendMessage", new SendMessageRequest(MyId, activePartnerId, content));
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (scrollPending)
+        {
+            scrollPending = false;
+            await JS.InvokeVoidAsync("mlScrollToEnd", threadEl);
+        }
+    }
+
+    private static string Stamp(DateTime utc)
+    {
+        var local = utc.ToLocalTime();
+        var today = DateTime.Now.Date;
+        if (local.Date == today) return local.ToString("h:mm tt");
+        if (local.Date == today.AddDays(-1)) return "Yesterday";
+        if ((today - local.Date).TotalDays < 7) return local.ToString("ddd");
+        return local.ToString("MMM d");
+    }
+
+    private static string GroupStamp(DateTime utc)
+    {
+        var local = utc.ToLocalTime();
+        var today = DateTime.Now.Date;
+        var day = local.Date == today ? "TODAY" : local.Date == today.AddDays(-1) ? "YESTERDAY" : local.ToString("MMM d").ToUpperInvariant();
+        return $"{day} · {local:h:mm tt}";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hub is not null) await hub.DisposeAsync();
+    }
+}

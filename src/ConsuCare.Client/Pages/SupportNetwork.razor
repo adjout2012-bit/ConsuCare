@@ -1,0 +1,100 @@
+@page "/support-network"
+@layout AppLayout
+@inject Api Api
+@inject AppState State
+@inject NavigationManager Nav
+
+<PageTitle>My Support Network — ConsuCare</PageTitle>
+
+<div class="pagehead"><h1>My Support Network</h1></div>
+
+<div class="tabs">
+    <button class="@(tab == 0 ? "on" : "")" @onclick="() => tab = 0">Active</button>
+    <button class="@(tab == 1 ? "on" : "")" @onclick="() => tab = 1">Pending</button>
+    <button class="@(tab == 2 ? "on" : "")" @onclick="() => tab = 2">Past</button>
+</div>
+
+@if (connections is null)
+{
+<div class="loading">Loading your support network…</div>
+}
+else
+{
+    var visible = tab switch
+    {
+        0 => connections.Where(m => !m.IsPendingRequest && m.Status == ConnectionStatus.Active),
+        1 => connections.Where(m => m.IsPendingRequest),
+        _ => connections.Where(m => !m.IsPendingRequest && m.Status == ConnectionStatus.Completed)
+    };
+
+    if (!visible.Any())
+    {
+        <div class="empty-tab">
+            @(tab switch
+            {
+                0 => "No active peer-support connections — discover a supporter to get started.",
+                1 => "No pending requests right now.",
+                _ => "No completed peer-support connections yet."
+            })
+        </div>
+    }
+
+    @foreach (var connection in visible)
+    {
+        <div class="card mship">
+            <Avatar Name="@connection.PartnerName" Size="md" />
+            <div class="info">
+                <b>@connection.PartnerName</b>
+                <span>@connection.PartnerRoleLine</span>
+            </div>
+            <div class="goal">
+                <div class="g1">@connection.GoalTitle</div>
+                @if (!connection.IsPendingRequest && connection.Status == ConnectionStatus.Active)
+                {
+                    <div class="row">
+                        <div class="prog"><i style="width:@(connection.Progress)%"></i></div>
+                        <span class="pct">@(connection.Progress)%</span>
+                    </div>
+                }
+            </div>
+
+            @if (connection.IsPendingRequest)
+            {
+                <span class="badge badge-grey">Awaiting Response</span>
+            }
+            else if (connection.Status == ConnectionStatus.Completed)
+            {
+                <span class="badge badge-dark">Completed</span>
+                <div class="acts">
+                    <button class="btn btn-out btn-sm" @onclick="() => LeaveReview(connection.PartnerId)">Leave a Review</button>
+                </div>
+            }
+            else
+            {
+                <span class="meta">
+                    @(connection.LastSessionAt is null ? "No check-ins yet" : $"Last check-in {connection.LastSessionAt.Value.ToLocalTime():MMM d, yyyy}")
+                </span>
+                <div class="acts">
+                    <button class="btn btn-dark btn-sm" @onclick="() => OpenChat(connection.PartnerId)">Message</button>
+                    <button class="btn btn-out btn-sm" @onclick="ViewGoals">View Goals</button>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    private List<SupportConnectionDto>? connections;
+    private int tab;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await State.EnsureLoadedAsync();
+        if (State.CurrentUser is null) return;
+        connections = await Api.GetSupportConnectionsAsync(State.CurrentUser.Id);
+    }
+
+    private void OpenChat(int userId) => Nav.NavigateTo($"/messages?with={userId}");
+    private void LeaveReview(int userId) => Nav.NavigateTo($"/supporter/{userId}?review=1");
+    private void ViewGoals() => Nav.NavigateTo("/goals");
+}

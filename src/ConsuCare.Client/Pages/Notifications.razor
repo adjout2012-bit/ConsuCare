@@ -1,0 +1,93 @@
+@page "/notifications"
+@layout AppLayout
+@inject Api Api
+@inject AppState State
+
+<PageTitle>Notifications — ConsuCare</PageTitle>
+
+<div style="max-width:780px">
+    <div class="pagehead">
+        <h1>Notifications</h1>
+        <button class="btn btn-ghost btn-sm" style="text-decoration:underline; text-underline-offset:3px" @onclick="MarkAllRead">
+            Mark all as read
+        </button>
+    </div>
+
+    @if (notifications is null)
+    {
+        <div class="loading">Loading notifications…</div>
+    }
+    else if (notifications.Count == 0)
+    {
+        <div class="empty-tab">Nothing here yet — activity in your peer-support network will show up here.</div>
+    }
+    else
+    {
+        @if (Today.Any())
+        {
+            <div class="ngroup">
+                <span class="lab">Today</span>
+                @foreach (var notification in Today)
+                {
+                    @NotificationRow(notification)
+                }
+            </div>
+        }
+        @if (Earlier.Any())
+        {
+            <div class="ngroup">
+                <span class="lab">Earlier</span>
+                @foreach (var notification in Earlier)
+                {
+                    @NotificationRow(notification)
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private List<NotificationDto>? notifications;
+
+    private IEnumerable<NotificationDto> Today
+        => (notifications ?? new()).Where(n => n.CreatedAt.ToLocalTime().Date == DateTime.Now.Date);
+
+    private IEnumerable<NotificationDto> Earlier
+        => (notifications ?? new()).Where(n => n.CreatedAt.ToLocalTime().Date != DateTime.Now.Date);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await State.EnsureLoadedAsync();
+        if (State.CurrentUser is null) return;
+        notifications = await Api.GetNotificationsAsync(State.CurrentUser.Id);
+    }
+
+    private async Task MarkAllRead()
+    {
+        if (State.CurrentUser is null) return;
+        await Api.MarkAllReadAsync(State.CurrentUser.Id);
+        notifications = await Api.GetNotificationsAsync(State.CurrentUser.Id);
+    }
+
+    private RenderFragment NotificationRow(NotificationDto n) => @<div class="notif @(n.IsRead ? "read" : "")">
+        <span class="undot"></span>
+        <span class="nicon"><Icon Name="@IconFor(n.Kind)" Size="17" /></span>
+        <div class="nbody"><b>@n.Title</b><span>@n.Body</span></div>
+        <span class="ntime">@Stamp(n.CreatedAt)</span>
+    </div>;
+
+    private static string IconFor(NotificationKind kind) => kind switch
+    {
+        NotificationKind.RequestAccepted => "link",
+        NotificationKind.RequestReceived => "link",
+        NotificationKind.NewMessage => "chat",
+        NotificationKind.MilestoneCompleted => "flag",
+        _ => "bell"
+    };
+
+    private static string Stamp(DateTime utc)
+    {
+        var local = utc.ToLocalTime();
+        return local.Date == DateTime.Now.Date ? local.ToString("h:mm tt") : local.ToString("MMM d");
+    }
+}

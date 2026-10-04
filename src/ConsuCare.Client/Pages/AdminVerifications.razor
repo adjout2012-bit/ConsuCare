@@ -1,0 +1,74 @@
+@page "/admin/verifications"
+@layout AdminLayout
+@inject Api Api
+
+<PageTitle>Supporter Verification — ConsuCare Admin</PageTitle>
+
+<div class="pagehead">
+    <div>
+        <h1>Pending Verifications</h1>
+        <p class="sub">Review supporter applications before they appear in Discover.</p>
+    </div>
+</div>
+
+<div class="pills">
+    <button class="@(filter is null ? "on" : "")" @onclick="() => filter = null">All</button>
+    <button class="@(filter == VerificationStatus.Pending ? "on" : "")" @onclick="() => filter = VerificationStatus.Pending">Pending</button>
+    <button class="@(filter == VerificationStatus.Approved ? "on" : "")" @onclick="() => filter = VerificationStatus.Approved">Approved</button>
+    <button class="@(filter == VerificationStatus.Rejected ? "on" : "")" @onclick="() => filter = VerificationStatus.Rejected">Rejected</button>
+</div>
+
+@if (verifications is null)
+{
+    <div class="loading">Loading applications…</div>
+}
+else
+{
+    var visible = verifications.Where(v => filter is null || v.Status == filter).ToList();
+
+    if (visible.Count == 0)
+    {
+        <div class="empty-tab">No applications in this state.</div>
+    }
+
+    @foreach (var v in visible)
+    {
+        <div class="vrow">
+            <Avatar Name="@v.Name" Size="md" />
+            <div class="vb"><b>@v.Name</b><span>@v.Community</span></div>
+            <div class="inst">@v.Title · @v.ConditionType<span>@(v.DiagnosisYear > 0 ? $"Diagnosed {v.DiagnosisYear}" : "")</span></div>
+            <span class="applied">Applied @v.AppliedOn.ToLocalTime().ToString("MMM d, yyyy")</span>
+            @if (v.Status == VerificationStatus.Pending)
+            {
+                <div class="acts">
+                    <button class="btn btn-dark btn-sm" @onclick="() => Approve(v.ProfileId)">Approve</button>
+                    <button class="btn btn-out btn-sm" @onclick="() => Reject(v.ProfileId)">Reject</button>
+                </div>
+            }
+            else
+            {
+                <span class="badge @(v.Status == VerificationStatus.Approved ? "badge-dark" : "badge-grey")">@v.Status</span>
+            }
+        </div>
+    }
+}
+
+@code {
+    private List<VerificationDto>? verifications;
+    private VerificationStatus? filter = null;
+
+    protected override async Task OnInitializedAsync()
+        => verifications = await Api.GetVerificationsAsync();
+
+    private async Task Approve(int profileId)
+    {
+        await Api.ApproveVerificationAsync(profileId);
+        verifications = await Api.GetVerificationsAsync();
+    }
+
+    private async Task Reject(int profileId)
+    {
+        await Api.RejectVerificationAsync(profileId);
+        verifications = await Api.GetVerificationsAsync();
+    }
+}
