@@ -52,6 +52,15 @@ The Blazor WebAssembly client can be published to Vercel using the repository's 
 
 The client currently reads `ApiBaseUrl` from `src/ConsuCare.Client/wwwroot/appsettings.json`. Until the API is deployed and that setting points to its reachable URL, the UI can load on Vercel but API-backed operations will fail.
 
+### Deploy the API to Render
+
+The root `render.yaml` defines the `consucare-api` Docker Web Service. In Render, create a **Blueprint Instance** from this GitHub repository and set the two prompted secret environment values directly in Render:
+
+- `ConnectionStrings__DefaultConnection`: the Supabase IPv4 session-pooler connection string for the ConsuCare database.
+- `Jwt__Key`: a new, strong random signing key (use a separate key from local development and tests).
+
+Do not commit either value or share them in chat. Render builds from the repository root using `Dockerfile`; the API applies EF Core migrations when it starts. After deployment, copy the service's public `onrender.com` URL into `ApiBaseUrl` in `src/ConsuCare.Client/wwwroot/appsettings.json` (include the trailing slash). The API currently allows the production Vercel origin `https://mentorlink-client.vercel.app`; update the CORS origin in `src/ConsuCare.Api/Program.cs` if the Vercel deployment uses a different domain.
+
 ## Tests
 
 ```bash
