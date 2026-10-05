@@ -106,12 +106,31 @@
         }
 
         busy = true;
-        var (auth, apiError) = await Api.SignupAsync(new SignupRequest(
-            fullName, email, community, password, role,
-            role == UserRole.Supporter ? conditionType : "",
-            role == UserRole.Supporter ? diagnosisYear ?? 0 : 0,
-            role == UserRole.Supporter && shareHealthDetails));
-        busy = false;
+        (AuthResponse? Auth, string? Error) signupResult;
+        try
+        {
+            signupResult = await Api.SignupAsync(new SignupRequest(
+                fullName, email, community, password, role,
+                role == UserRole.Supporter ? conditionType : "",
+                role == UserRole.Supporter ? diagnosisYear ?? 0 : 0,
+                role == UserRole.Supporter && shareHealthDetails));
+        }
+        catch (HttpRequestException)
+        {
+            error = "We couldn't reach ConsuCare right now. Please try again in a moment.";
+            return;
+        }
+        catch (TaskCanceledException)
+        {
+            error = "The request timed out. Please try again in a moment.";
+            return;
+        }
+        finally
+        {
+            busy = false;
+        }
+
+        var (auth, apiError) = signupResult;
 
         if (auth is null)
         {

@@ -15,7 +15,7 @@ builder.Services.AddSignalR();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("VercelFrontend", policy =>
-        policy.WithOrigins("https://mentorlink-client.vercel.app")
+        policy.WithOrigins("https://consu-care.vercel.app", "https://mentorlink-client.vercel.app")
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials());

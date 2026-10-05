@@ -25,7 +25,7 @@ PostgreSQL (Supabase)   — or an in-memory database for local development
 
 | Part | Host | Deployed from |
 |------|------|---------------|
-| Front end | Existing Vercel host — https://mentorlink-client.vercel.app (legacy hostname) | `build-vercel.sh` publishes the client; `vercel.json` sends every route to `index.html` so refreshing a page works |
+| Front end | Vercel — https://consu-care.vercel.app | `build-vercel.sh` publishes the client; `vercel.json` sends every route to `index.html` so refreshing a page works |
 | API + chat hub | Existing Render host — https://project-mentorlink.onrender.com (legacy hostname) | Root `Dockerfile` |
 | Database | Supabase PostgreSQL (session pooler) | EF Core migrations run automatically when the API starts |
 
