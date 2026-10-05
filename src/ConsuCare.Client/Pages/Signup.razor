@@ -38,7 +38,8 @@
         </div>
         <div class="field">
             <label for="su-email">Email</label>
-            <input class="inp" id="su-email" type="email" placeholder="you@supporter.dev" @bind="email" />
+            <input class="inp" id="su-email" type="email"
+                   placeholder="@(role == UserRole.Patient ? "you@patient.dev" : "you@supporter.dev")" @bind="email" />
         </div>
         <div class="field">
             <label for="su-field">Community or interests (optional)</label>
