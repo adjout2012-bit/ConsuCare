@@ -26,10 +26,10 @@ PostgreSQL (Supabase)   — or an in-memory database for local development
 | Part | Host | Deployed from |
 |------|------|---------------|
 | Front end | Vercel — https://consu-care.vercel.app | `build-vercel.sh` publishes the client; `vercel.json` sends every route to `index.html` so refreshing a page works |
-| API + chat hub | Existing Render host — https://project-mentorlink.onrender.com (legacy hostname) | Root `Dockerfile` |
+| API + chat hub | Render — https://consucare-api.onrender.com | Root `Dockerfile` |
 | Database | Supabase PostgreSQL (session pooler) | EF Core migrations run automatically when the API starts |
 
-The client reads the API address from `wwwroot/appsettings.json` (`ApiBaseUrl`). For local runs `appsettings.Development.json` blanks it so the client calls the API it is served from. These legacy deployment domains remain configured for compatibility; replace them only when ConsuCare deployment URLs are available.
+The client reads the API address from `wwwroot/appsettings.json` (`ApiBaseUrl`). For local runs `appsettings.Development.json` blanks it so the client calls the API it is served from.
 
 ## Data model
 

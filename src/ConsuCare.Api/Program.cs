@@ -15,7 +15,7 @@ builder.Services.AddSignalR();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("VercelFrontend", policy =>
-        policy.WithOrigins("https://consu-care.vercel.app", "https://mentorlink-client.vercel.app")
+        policy.WithOrigins("https://consu-care.vercel.app")
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials());
@@ -34,10 +34,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
-            // Accept tokens issued before the product rename; new tokens use the ConsuCare issuer.
-            ValidIssuers = [jwtIssuer, "MentorLink"],
+            ValidIssuer = jwtIssuer,
             ValidateAudience = true,
-            ValidAudiences = [jwtIssuer, "MentorLink"],
+            ValidAudience = jwtIssuer,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))

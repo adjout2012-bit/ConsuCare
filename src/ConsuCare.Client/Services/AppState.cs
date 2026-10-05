@@ -8,7 +8,6 @@ namespace ConsuCare.Client.Services;
 public class AppState
 {
     private const string StorageKey = "consucare-session";
-    private const string LegacyStorageKey = "mentorlink-session";
     private readonly IJSRuntime _js;
     private bool _loaded;
 
@@ -24,16 +23,7 @@ public class AppState
         _loaded = true;
         try
         {
-            var json = await _js.InvokeAsync<string?>("mlStore.get", StorageKey);
-            if (string.IsNullOrEmpty(json))
-            {
-                json = await _js.InvokeAsync<string?>("mlStore.get", LegacyStorageKey);
-                if (!string.IsNullOrEmpty(json))
-                {
-                    await _js.InvokeVoidAsync("mlStore.set", StorageKey, json);
-                    await _js.InvokeVoidAsync("mlStore.del", LegacyStorageKey);
-                }
-            }
+            var json = await _js.InvokeAsync<string?>("consuCareStore.get", StorageKey);
             if (!string.IsNullOrEmpty(json))
             {
                 var session = JsonSerializer.Deserialize<StoredSession>(json);
@@ -48,7 +38,7 @@ public class AppState
     {
         CurrentUser = user;
         Token = token;
-        await _js.InvokeVoidAsync("mlStore.set", StorageKey, JsonSerializer.Serialize(new StoredSession(user, token)));
+        await _js.InvokeVoidAsync("consuCareStore.set", StorageKey, JsonSerializer.Serialize(new StoredSession(user, token)));
         OnChange?.Invoke();
     }
 
@@ -56,7 +46,7 @@ public class AppState
     {
         CurrentUser = null;
         Token = null;
-        await _js.InvokeVoidAsync("mlStore.del", StorageKey);
+        await _js.InvokeVoidAsync("consuCareStore.del", StorageKey);
         OnChange?.Invoke();
     }
 

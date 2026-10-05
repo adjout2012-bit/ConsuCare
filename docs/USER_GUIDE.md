@@ -1,6 +1,6 @@
 # ConsuCare — User Guide
 
-ConsuCare works in any modern browser on a computer, tablet or phone. The current hosted site is https://consu-care.vercel.app. The legacy https://mentorlink-client.vercel.app hostname may serve an older deployment.
+ConsuCare works in any modern browser on a computer, tablet or phone. Visit https://consu-care.vercel.app to use the hosted site.
 
 On a phone, tap the **☰** button at the top right to open the menu.
 

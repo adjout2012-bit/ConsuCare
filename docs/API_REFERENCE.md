@@ -1,6 +1,6 @@
 # ConsuCare — API Reference
 
-Local base URL: `http://localhost:5180`. The currently configured hosted API is `https://project-mentorlink.onrender.com`, a legacy deployment hostname retained until a ConsuCare deployment URL is supplied.
+Local base URL: `http://localhost:5180`. The hosted API is `https://consucare-api.onrender.com`.
 
 Endpoints marked 🔒 need an `Authorization: Bearer <token>` header; the token comes from login or sign-up. Without it they return `401 Unauthorized`. Request and response bodies are JSON; enums are sent as numbers.
 

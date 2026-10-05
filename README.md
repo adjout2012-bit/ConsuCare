@@ -59,7 +59,7 @@ The root `render.yaml` defines the `consucare-api` Docker Web Service. In Render
 - `ConnectionStrings__DefaultConnection`: the Supabase IPv4 session-pooler connection string for the ConsuCare database.
 - `Jwt__Key`: a new, strong random signing key (use a separate key from local development and tests).
 
-Do not commit either value or share them in chat. Render builds from the repository root using `Dockerfile`; the API applies EF Core migrations when it starts. After deployment, copy the service's public `onrender.com` URL into `ApiBaseUrl` in `src/ConsuCare.Client/wwwroot/appsettings.json` (include the trailing slash). The production Vercel origin is `https://consu-care.vercel.app`; the legacy `https://mentorlink-client.vercel.app` origin remains allowed for existing users.
+Do not commit either value or share them in chat. Render builds from the repository root using `Dockerfile`; the API applies EF Core migrations when it starts. The API is hosted at `https://consucare-api.onrender.com`; its origin is configured in `src/ConsuCare.Client/wwwroot/appsettings.json`. The production Vercel origin is `https://consu-care.vercel.app`.
 
 ## Tests
 
@@ -93,7 +93,7 @@ dotnet user-secrets set "ConnectionStrings:DefaultConnection" "<Npgsql connectio
 
 > If your network blocks direct connections (IPv6), use Supabase's **session pooler** connection string instead — same format, host like `aws-0-REGION.pooler.supabase.com`, port `5432`, username `postgres.YOUR-PROJECT-REF`.
 >
-> The linked Supabase project's non-system schemas were checked and no legacy MentorLink/Mentorship tables or `__EFMigrationsHistory` were present. The `InitialConsuCareCreate` EF migration was then applied successfully to that remote project through its IPv4 session pooler. The separate local PostgreSQL instance was not updated. Always inspect an existing target database and back it up before applying this initial migration there.
+> The linked Supabase project's non-system schemas were checked and no predecessor-application tables or `__EFMigrationsHistory` were present. The `InitialConsuCareCreate` EF migration was then applied successfully to that remote project through its IPv4 session pooler. The separate local PostgreSQL instance was not updated. Always inspect an existing target database and back it up before applying this initial migration there.
 
 ## Supabase CLI and EF Core
 
